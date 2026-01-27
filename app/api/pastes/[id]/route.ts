@@ -1,6 +1,14 @@
 // app/api/pastes/[id]/route.ts
 import { getRedis } from "@/lib/redis";
 
+type Paste = {
+  content: string;
+  created_at: number;
+  ttl_seconds: number | null;
+  max_views: number | null;
+  views: number;
+};
+
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
@@ -15,12 +23,11 @@ export async function GET(
     );
   }
 
-  const paste = JSON.parse(
-    typeof raw === "string" ? raw : raw.toString()
-  );
+  // ✅ FIXED
+  const text = typeof raw === "string" ? raw : raw.toString();
+  const paste: Paste = JSON.parse(text);
 
   const now = Date.now();
-
   if (
     (paste.ttl_seconds &&
       paste.created_at + paste.ttl_seconds * 1000 <= now) ||
@@ -34,22 +41,16 @@ export async function GET(
 
   paste.views += 1;
 
-  await redis.set(params.id, JSON.stringify(paste), {
-    EX: paste.ttl_seconds ?? undefined,
-  });
+  if (paste.ttl_seconds) {
+    await redis.set(params.id, JSON.stringify(paste), {
+      EX: paste.ttl_seconds,
+    });
+  } else {
+    await redis.set(params.id, JSON.stringify(paste));
+  }
 
   return new Response(
-    JSON.stringify({
-      content: paste.content,
-      remaining_views: paste.max_views
-        ? paste.max_views - paste.views
-        : null,
-      expires_at: paste.ttl_seconds
-        ? new Date(
-            paste.created_at + paste.ttl_seconds * 1000
-          ).toISOString()
-        : null,
-    }),
+    JSON.stringify(paste),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
 }

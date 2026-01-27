@@ -1,21 +1,20 @@
-import { createClient } from "redis";
+// lib/redis.ts
+import { createClient, RedisClientType } from "redis";
 
-let redisClient: ReturnType<typeof createClient> | null = null;
+let redis: RedisClientType | null = null;
 
 export async function getRedis() {
-  if (!redisClient) {
-    redisClient = createClient({
+  if (!redis) {
+    redis = createClient({
       url: process.env.REDIS_URL,
     });
 
-    redisClient.on("error", (err) => {
-      console.error("Redis error", err);
-    });
+    redis.on("error", (err) => console.error("Redis Error", err));
 
-    if (!redisClient.isOpen) {
-      await redisClient.connect();
+    if (!redis.isOpen) {
+      await redis.connect();
     }
   }
 
-  return redisClient;
+  return redis;
 }
