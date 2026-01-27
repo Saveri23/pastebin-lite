@@ -1,43 +1,55 @@
-'use client';
-import { useState } from 'react';
+import { redis } from '../lib/redis';
+import { notFound } from 'next/navigation';
 
-export default function Home() {
-  const [content, setContent] = useState('');
-  const [ttl, setTtl] = useState('');
-  const [maxViews, setMaxViews] = useState('');
-  const [result, setResult] = useState('');
+type Paste = {
+  content: string;
+  created_at: number;
+  ttl_seconds?: number;
+  max_views?: number;
+  views: number;
+};
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    setResult('');
-    try {
-      const res = await fetch('/api/pastes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content,
-          ttl_seconds: ttl ? parseInt(ttl) : undefined,
-          max_views: maxViews ? parseInt(maxViews) : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) setResult(JSON.stringify(data));
-      else setResult(`Paste URL: ${data.url}`);
-    } catch (err) {
-      setResult('Error creating paste');
-    }
-  };
+export default async function PastePage({ params }: { params: { id: string } }) {
+  const raw = await redis.get(params.id);
+  if (!raw) return notFound();
+
+  const paste: Paste = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
+
+  // TTL check
+  const now = Date.now();
+  if ((paste.ttl_seconds && paste.created_at + paste.ttl_seconds * 1000 <= now) ||
+      (paste.max_views && paste.views >= paste.max_views)) {
+    return notFound();
+  }
+
+  paste.views += 1;
+  await redis.set(params.id, JSON.stringify(paste), { EX: paste.ttl_seconds ?? undefined });
+
+  const expiresAt = paste.ttl_seconds
+    ? new Date(paste.created_at + paste.ttl_seconds * 1000).toLocaleString()
+    : 'Never';
+
+  const remainingViews = paste.max_views ? paste.max_views - paste.views : 'Unlimited';
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Pastebin-Lite</h1>
-      <form onSubmit={handleSubmit}>
-        <textarea placeholder="Paste content" value={content} onChange={(e) => setContent(e.target.value)} rows={10} cols={50}></textarea><br/>
-        <input type="number" placeholder="TTL seconds (optional)" value={ttl} onChange={(e) => setTtl(e.target.value)} /><br/>
-        <input type="number" placeholder="Max views (optional)" value={maxViews} onChange={(e) => setMaxViews(e.target.value)} /><br/>
-        <button type="submit">Create Paste</button>
-      </form>
-      {result && <div style={{ marginTop: '1rem', whiteSpace: 'pre-wrap' }}>{result}</div>}
+    <div style={{ maxWidth: 600, margin: '2rem auto', fontFamily: 'Arial, sans-serif' }}>
+      <h1>Your Paste</h1>
+      <div
+        style={{
+          padding: 16,
+          border: '1px solid #ccc',
+          borderRadius: 8,
+          backgroundColor: '#f9f9f9',
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'monospace',
+        }}
+      >
+        {paste.content}
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <p><strong>Expires at:</strong> {expiresAt}</p>
+        <p><strong>Remaining views:</strong> {remainingViews}</p>
+      </div>
     </div>
   );
 }
