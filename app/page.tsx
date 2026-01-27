@@ -1,5 +1,7 @@
-import { redis } from '../lib/redis';
-import { notFound } from 'next/navigation';
+
+export const dynamic = "force-dynamic";
+
+import Link from "next/link";
 
 type Paste = {
   content: string;
@@ -9,47 +11,35 @@ type Paste = {
   views: number;
 };
 
-export default async function PastePage({ params }: { params: { id: string } }) {
-  const raw = await redis.get(params.id);
-  if (!raw) return notFound();
 
-  const paste: Paste = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
-
-  // TTL check
-  const now = Date.now();
-  if ((paste.ttl_seconds && paste.created_at + paste.ttl_seconds * 1000 <= now) ||
-      (paste.max_views && paste.views >= paste.max_views)) {
-    return notFound();
-  }
-
-  paste.views += 1;
-  await redis.set(params.id, JSON.stringify(paste), { EX: paste.ttl_seconds ?? undefined });
-
-  const expiresAt = paste.ttl_seconds
-    ? new Date(paste.created_at + paste.ttl_seconds * 1000).toLocaleString()
-    : 'Never';
-
-  const remainingViews = paste.max_views ? paste.max_views - paste.views : 'Unlimited';
-
+export default function HomePage() {
   return (
-    <div style={{ maxWidth: 600, margin: '2rem auto', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Your Paste</h1>
-      <div
-        style={{
-          padding: 16,
-          border: '1px solid #ccc',
-          borderRadius: 8,
-          backgroundColor: '#f9f9f9',
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'monospace',
-        }}
-      >
-        {paste.content}
+    <main className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-4 text-center">
+          Pastebin Lite
+        </h1>
+
+        <p className="text-gray-600 text-center mb-6">
+          Create and share temporary text pastes securely.
+        </p>
+
+        <div className="flex flex-col gap-3">
+          <Link
+            href="/new"
+            className="bg-blue-600 text-white text-center py-2 rounded hover:bg-blue-700"
+          >
+            Create New Paste
+          </Link>
+
+          <Link
+            href="/api/healthz"
+            className="border border-gray-300 text-center py-2 rounded hover:bg-gray-50"
+          >
+            Health Check
+          </Link>
+        </div>
       </div>
-      <div style={{ marginTop: 12 }}>
-        <p><strong>Expires at:</strong> {expiresAt}</p>
-        <p><strong>Remaining views:</strong> {remainingViews}</p>
-      </div>
-    </div>
+    </main>
   );
 }

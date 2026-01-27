@@ -1,5 +1,5 @@
-import { redis } from '../../../lib/redis';
-import { notFound } from 'next/navigation';
+import { getRedis } from "@/lib/redis";
+import { notFound } from "next/navigation";
 
 type Paste = {
   content: string;
@@ -9,44 +9,61 @@ type Paste = {
   views: number;
 };
 
-export default async function PastePage({ params }: { params: { id: string } }) {
-  const raw = await redis.get(params.id);
+export default async function PastePage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const redis = await getRedis(); // ✅ THIS WAS MISSING
+
+  const raw = await redis.get(`paste:${params.id}`);
   if (!raw) return notFound();
 
-  const paste: Paste = JSON.parse(typeof raw === 'string' ? raw : raw.toString());
+  const paste: Paste = JSON.parse(
+    typeof raw === "string" ? raw : raw.toString()
+  );
 
-  // TTL check
+  // TTL / max views check
   const now = Date.now();
-  if ((paste.ttl_seconds && paste.created_at + paste.ttl_seconds * 1000 <= now) ||
-      (paste.max_views && paste.views >= paste.max_views)) {
-    return notFound();
+  const expired =
+    (paste.ttl_seconds &&
+      paste.created_at + paste.ttl_seconds * 1000 <= now) ||
+    (paste.max_views && paste.views >= paste.max_views);
+
+  if (expired) return notFound();
+
+  // increment views
+  paste.views += 1;
+
+  if (paste.ttl_seconds) {
+    await redis.set(
+      `paste:${params.id}`,
+      JSON.stringify(paste),
+      { EX: paste.ttl_seconds }
+    );
+  } else {
+    await redis.set(`paste:${params.id}`, JSON.stringify(paste));
   }
 
-  paste.views += 1;
-  await redis.set(params.id, JSON.stringify(paste), { EX: paste.ttl_seconds ?? undefined });
-
   const expiresAt = paste.ttl_seconds
-    ? new Date(paste.created_at + paste.ttl_seconds * 1000).toLocaleString()
-    : 'Never';
+    ? new Date(
+        paste.created_at + paste.ttl_seconds * 1000
+      ).toLocaleString()
+    : "Never";
 
-  const remainingViews = paste.max_views ? paste.max_views - paste.views : 'Unlimited';
+  const remainingViews = paste.max_views
+    ? paste.max_views - paste.views
+    : "Unlimited";
 
   return (
-    <div style={{ maxWidth: 600, margin: '2rem auto', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Your Paste</h1>
-      <div
-        style={{
-          padding: 16,
-          border: '1px solid #ccc',
-          borderRadius: 8,
-          backgroundColor: '#f9f9f9',
-          whiteSpace: 'pre-wrap',
-          fontFamily: 'monospace',
-        }}
-      >
+    <div className="mx-auto mt-8 max-w-xl rounded-lg border p-6">
+      <h1 className="mb-4 text-xl font-semibold">Your Paste</h1>
+
+      <pre className="rounded bg-gray-100 p-4 text-sm">
         {paste.content}
-      </div>
-      <div style={{ marginTop: 12 }}>
+      </pre>
+
+      <div className="mt-4 text-sm text-gray-600">
         <p><strong>Expires at:</strong> {expiresAt}</p>
         <p><strong>Remaining views:</strong> {remainingViews}</p>
       </div>

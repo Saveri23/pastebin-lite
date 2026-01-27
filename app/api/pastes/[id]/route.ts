@@ -1,34 +1,46 @@
-import { redis } from '../../../../lib/redis';
-import { now } from '../../../../lib/time';
+import { getRedis } from "@/lib/redis";
+import { validatePasteInput } from "@/lib/validate";
+import { v4 as uuidv4 } from "uuid";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const id = params.id;
-  let raw = await redis.get(id);
-  if (!raw) return new Response(JSON.stringify({ error: 'Paste not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+export async function POST(req: Request) {
+  const body = await req.json();
+  const errors = validatePasteInput(body);
 
-  // Convert Buffer to string if needed
-  const rawString = typeof raw === 'string' ? raw : raw.toString();
-  const paste = JSON.parse(rawString);
-
-  const currentTime = now(req);
-
-  // TTL check
-  if (paste.ttl_seconds && paste.created_at + paste.ttl_seconds * 1000 <= currentTime) {
-    return new Response(JSON.stringify({ error: 'Paste expired' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  if (errors.length > 0) {
+    return new Response(JSON.stringify({ errors }), { status: 400 });
   }
 
-  // Max views check
-  if (paste.max_views && paste.views >= paste.max_views) {
-    return new Response(JSON.stringify({ error: 'View limit exceeded' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  const { content, ttl_seconds, max_views } = body;
+  const id = uuidv4();
+
+  const paste = {
+    content,
+    created_at: Date.now(),
+    ttl_seconds: ttl_seconds ?? null,
+    max_views: max_views ?? null,
+    views: 0,
+  };
+
+  const redis = await getRedis();
+
+  if (ttl_seconds) {
+    await redis.set(
+      `paste:${id}`,
+      JSON.stringify(paste),
+      { EX: ttl_seconds }
+    );
+  } else {
+    await redis.set(`paste:${id}`, JSON.stringify(paste));
   }
 
-  // Increment views
-  paste.views += 1;
-  await redis.set(id, JSON.stringify(paste), { EX: paste.ttl_seconds ?? undefined });
-
-  return new Response(JSON.stringify({
-    content: paste.content,
-    remaining_views: paste.max_views ? paste.max_views - paste.views : null,
-    expires_at: paste.ttl_seconds ? new Date(paste.created_at + paste.ttl_seconds * 1000).toISOString() : null,
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  return new Response(
+    JSON.stringify({
+      id,
+      url: `${process.env.NEXT_PUBLIC_BASE_URL}/p/${id}`,
+    }),
+    {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+    }
+  );
 }

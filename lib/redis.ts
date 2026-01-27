@@ -1,9 +1,21 @@
-import { createClient } from 'redis';
+import { createClient } from "redis";
 
-if (!process.env.REDIS_URL) throw new Error('REDIS_URL missing');
+let redisClient: ReturnType<typeof createClient> | null = null;
 
-export const redis = createClient({ url: process.env.REDIS_URL });
+export async function getRedis() {
+  if (!redisClient) {
+    redisClient = createClient({
+      url: process.env.REDIS_URL,
+    });
 
-redis.on('error', (err) => console.error('Redis Client Error', err));
+    redisClient.on("error", (err) => {
+      console.error("Redis error", err);
+    });
 
-await redis.connect();
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+    }
+  }
+
+  return redisClient;
+}

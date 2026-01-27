@@ -1,5 +1,7 @@
 {
-  "/not-found": "app/not-found.js",
+  "/_not-found": "app/_not-found.js",
+  "/page": "app/page.js",
+  "/api/healthz/route": "app/api/healthz/route.js",
   "/api/pastes/route": "app/api/pastes/route.js",
   "/p/[id]/page": "app/p/[id]/page.js",
   "/api/pastes/[id]/route": "app/api/pastes/[id]/route.js"
