@@ -125,7 +125,7 @@ Error and success states are handled visually
 
 📎 Submission Links
 
-Deployed URL: 
+Deployed URL:  https://pastebin-lite-eosin-one.vercel.app
 
 Git Repository: https://github.com/Saveri23/pastebin-lite.git
 Status:
