@@ -35,38 +35,30 @@ This project uses Redis as the persistence layer.
 
 Why Redis?
 
-Fast key-value storage
+->Fast key-value storage
 
-Built-in TTL support (used for paste expiration)
+->Built-in TTL support (used for paste expiration)
 
-Works well with serverless platforms like Vercel
+->Works well with serverless platforms like Vercel
 
-No global mutable state is used
+->No global mutable state is used
 
-Each paste is stored as a Redis key with:
-
-Content
-
-Remaining views
+->Each paste is stored as a Redis key with:
 
 Expiry (via Redis TTL)
 
 🛠️ Running Locally
 1️⃣ Clone the repository
-git clone <YOUR_GIT_REPO_URL>
+git clone https://github.com/Saveri23/pastebin-lite.git
 cd pastebin-lite
 
 2️⃣ Install dependencies
 npm install
 
 3️⃣ Create .env.local
-REDIS_URL=redis://<username>:<password>@<host>:<port>
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
-
-
-⚠️ Note:
-
-Do not commit .env.local
+REDIS_URL=redis://default:F9R5tpWiJQ2Dh7OwPHlaH4HAlRCitBdi@redis-17038.c275.us-east-1-4.ec2.cloud.redislabs.com:17038
+NEXT_PUBLIC_BASE_URL=https://pastebin-lite-eosin-one.vercel.app
+TEST_MODE=0
 
 No secrets are stored in the repository
 
@@ -133,9 +125,9 @@ Error and success states are handled visually
 
 📎 Submission Links
 
-Deployed URL: <YOUR_VERCEL_URL>
+Deployed URL: 
 
-Git Repository: <YOUR_GITHUB_REPO_URL>
-Status
+Git Repository: https://github.com/Saveri23/pastebin-lite.git
+Status:
 
 The project meets all repository, build, runtime, and deployment guidelines required for evaluation.
