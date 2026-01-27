@@ -1,46 +1,55 @@
+// app/api/pastes/[id]/route.ts
 import { getRedis } from "@/lib/redis";
-import { validatePasteInput } from "@/lib/validate";
-import { v4 as uuidv4 } from "uuid";
 
-export async function POST(req: Request) {
-  const body = await req.json();
-  const errors = validatePasteInput(body);
-
-  if (errors.length > 0) {
-    return new Response(JSON.stringify({ errors }), { status: 400 });
-  }
-
-  const { content, ttl_seconds, max_views } = body;
-  const id = uuidv4();
-
-  const paste = {
-    content,
-    created_at: Date.now(),
-    ttl_seconds: ttl_seconds ?? null,
-    max_views: max_views ?? null,
-    views: 0,
-  };
-
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const redis = await getRedis();
+  const raw = await redis.get(params.id);
 
-  if (ttl_seconds) {
-    await redis.set(
-      `paste:${id}`,
-      JSON.stringify(paste),
-      { EX: ttl_seconds }
+  if (!raw) {
+    return new Response(
+      JSON.stringify({ error: "Paste not found" }),
+      { status: 404, headers: { "Content-Type": "application/json" } }
     );
-  } else {
-    await redis.set(`paste:${id}`, JSON.stringify(paste));
   }
+
+  const paste = JSON.parse(
+    typeof raw === "string" ? raw : raw.toString()
+  );
+
+  const now = Date.now();
+
+  if (
+    (paste.ttl_seconds &&
+      paste.created_at + paste.ttl_seconds * 1000 <= now) ||
+    (paste.max_views && paste.views >= paste.max_views)
+  ) {
+    return new Response(
+      JSON.stringify({ error: "Paste expired" }),
+      { status: 404, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  paste.views += 1;
+
+  await redis.set(params.id, JSON.stringify(paste), {
+    EX: paste.ttl_seconds ?? undefined,
+  });
 
   return new Response(
     JSON.stringify({
-      id,
-      url: `${process.env.NEXT_PUBLIC_BASE_URL}/p/${id}`,
+      content: paste.content,
+      remaining_views: paste.max_views
+        ? paste.max_views - paste.views
+        : null,
+      expires_at: paste.ttl_seconds
+        ? new Date(
+            paste.created_at + paste.ttl_seconds * 1000
+          ).toISOString()
+        : null,
     }),
-    {
-      status: 201,
-      headers: { "Content-Type": "application/json" },
-    }
+    { status: 200, headers: { "Content-Type": "application/json" } }
   );
 }
